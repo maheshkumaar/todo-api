@@ -1,6 +1,7 @@
 var express = require('express');
 var bodyParser = require('body-parser');
 var {ObjectID} = require('mongodb');
+var _ = require('lodash');
 
 var {mongoose} = require('./db/mongoose.js');
 var {Todo} = require('./models/Todo.js');
@@ -95,6 +96,63 @@ app.delete('/todo/:id',(req,res) => {
     }else{
         
         Todo.findByIdAndRemove(id).then((todo) => {
+            
+            if(todo === null){
+                
+                res.status(404).send({
+                    
+                    errorMessage : "Todo with the given ID not found"
+                    
+                });
+                
+            }else{
+                
+                res.status(200).send(todo);
+                
+            }
+            
+        });
+        
+    }
+    
+});
+
+app.patch("/todo/:id",(req,res) => {
+    
+    var id = req.params.id;
+    var body = _.pick(req.body,['text','completed']);
+    
+    if(!ObjectID.isValid(id)){
+        
+        res.status(400).send({
+            
+            errorMessage : "Invalid ID"
+            
+        });
+        
+    }else{
+        
+        if(_.isBoolean(body.completed) && body.completed){
+            
+            body.completedAt = new Date().getTime();
+            
+        }else{
+            
+            body.completed = false;
+            body.completedAt = null;
+            
+        }
+        
+        Todo.findByIdAndUpdate(id,{
+            
+                $set : body 
+            
+            },{
+            
+                new : true
+            
+            })
+            .then((todo) => {
             
             if(todo === null){
                 

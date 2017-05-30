@@ -10,7 +10,9 @@ var sampleTodos = [{
     text : "Sample Todo 1"
 },{
     _id : new ObjectID(),
-    text : "Sample Todo 2"
+    text : "Sample Todo 2",
+    completed : true,
+    completedAt : 33344
 }];
 
 beforeEach((done) => {
@@ -147,4 +149,141 @@ describe('GET /todo/:id',() => {
         
     });
 
+});
+
+
+describe('DELETE /todo/:id',() => {
+    
+    it('should delete appropriate TODO',(done) => {
+        
+        request(app)
+            .delete(`/todo/${sampleTodos[0]._id.toString('hex')}`)
+            .expect(200)
+            .expect((res) => {
+            
+                expect(res.body._id).toBe(sampleTodos[0]._id.toString('hex'));
+            
+            })
+            .end((err,res) => {
+            
+                if(err){
+                    
+                    done(err);
+                    
+                }else{
+                    
+                    Todo.findById(sampleTodos[0]._id.toString('hex')).then((todo) => {
+                        
+                        expect(todo).toBe(null);
+                        done();
+                        
+                    }).catch((err) => done(err));
+                    
+                }
+            
+        });
+        
+    }); 
+    
+     it('should return a 404 for non-existing ID',(done) => {
+        
+        var id = new ObjectID();
+        request(app)
+            .get(`/todo/${id}`)
+            .expect(404)
+            .end(done);
+        
+    });
+    
+    it('should return 400 for invalid ID',(done) => {
+        
+        var id = (new ObjectID()).toString('hex') + '11';
+        
+        request(app)
+            .get(`/todo/${id}`)
+            .expect(400)
+            .end(done);
+        
+    });
+    
+});
+
+describe('PATCH /todo/:id',() => {
+    
+    it('should update todo if completed is true',(done) => {
+        
+        request(app)
+            .patch(`/todo/${sampleTodos[0]._id.toString('hex')}`)
+            .send({
+            
+                text : "Sample change 1",
+                completed : true
+            
+            })
+            .expect(200)
+            .expect((res) => {
+            
+                expect(res.body.text).toBe("Sample change 1");
+                expect(res.body.completed).toBe(true);
+                expect(res.body.completedAt).toBeA('number');
+            
+            }).end((err,res) => {
+            
+                if(err){
+                    
+                    done(err);
+                    
+                }else{
+                    
+                    Todo.findById(sampleTodos[0]._id.toString('hex')).then((todo) => {
+                        
+                        expect(todo).toBeA(Todo);
+                        done();
+                        
+                    }).catch((err) => done(err));
+                    
+                }
+            
+            });
+        
+    });
+    
+    it('should set completedAt to false if it is already true',(done) => {
+        
+        request(app)
+            .patch(`/todo/${sampleTodos[1]._id.toString('hex')}`)
+            .send({
+            
+                text : "Sample change 2",
+                completed : false
+            
+            })
+            .expect(200)
+            .expect((res) => {
+            
+                expect(res.body.text).toBe("Sample change 2");
+                expect(res.body.completed).toBe(false);
+                expect(res.body.completedAt).toBe(null);
+            
+            }).end((err,res) => {
+            
+                if(err){
+                    
+                    done(err);
+                    
+                }else{
+                    
+                    Todo.findById(sampleTodos[0]._id.toString('hex')).then((todo) => {
+                        
+                        expect(todo).toBeA(Todo);
+                        done();
+                        
+                    }).catch((err) => done(err));
+                    
+                }
+            
+            });
+        
+    });
+    
 });

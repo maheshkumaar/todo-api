@@ -4,17 +4,18 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-      "start": "node server/server.js",
-      "test": "mocha **/*.test.js"
+    "start": "node server/server.js",
+    "test": "mocha **/*.test.js"
   },
-    "engines":{
-      "node":"7.10.0"  
-    },
+  "engines": {
+    "node": "7.10.0"
+  },
   "author": "",
   "license": "ISC",
   "dependencies": {
     "body-parser": "^1.17.2",
     "express": "^4.15.3",
+    "lodash": "^4.17.4",
     "mongodb": "^2.2.27",
     "mongoose": "^4.10.3"
   },
