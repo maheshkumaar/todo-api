@@ -6,16 +6,18 @@ var _ = require('lodash');
 var {mongoose} = require('./db/mongoose.js');
 var {Todo} = require('./models/Todo.js');
 var {User} = require('./models/User.js');
+var {authenticate} = require('./middleware/authenticate.js');
 
 var app = express();
 
 app.use(bodyParser.json());
 
-app.post("/todo",(req,res) => {
+app.post("/todo",authenticate,(req,res) => {
     
    var todo = new Todo({
        
-       text : req.body.text
+       text : req.body.text,
+       _creator : req.user._id
        
    });
     
@@ -31,9 +33,9 @@ app.post("/todo",(req,res) => {
     
 });
 
-app.get("/todo",(req,res) => {
+app.get("/todo",authenticate,(req,res) => {
     
-    Todo.find().then((todos) => {
+    Todo.find({_creator : req.user._id}).then((todos) => {
         
         res.status(200).send({todos});
         
@@ -45,7 +47,7 @@ app.get("/todo",(req,res) => {
     
 });
 
-app.get("/todo/:id",(req,res) => {
+app.get("/todo/:id",authenticate,(req,res) => {
     
    var id = req.params.id;
     
@@ -59,7 +61,12 @@ app.get("/todo/:id",(req,res) => {
         
     }else{
         
-        Todo.findById(id).then((todo) => {
+        Todo.findOne({
+            
+            _creator : req.user._id,
+            _id : id
+            
+        }).then((todo) => {
            
             if(todo === null){
                 
@@ -81,7 +88,7 @@ app.get("/todo/:id",(req,res) => {
     
 });
 
-app.delete('/todo/:id',(req,res) => {
+app.delete('/todo/:id',authenticate,(req,res) => {
     
     var id = req.params.id;
     
@@ -95,7 +102,12 @@ app.delete('/todo/:id',(req,res) => {
         
     }else{
         
-        Todo.findByIdAndRemove(id).then((todo) => {
+        Todo.findOneAndRemove({
+            
+            _creator : req.user._id,
+            _id : id
+            
+        }).then((todo) => {
             
             if(todo === null){
                 
@@ -117,7 +129,7 @@ app.delete('/todo/:id',(req,res) => {
     
 });
 
-app.patch("/todo/:id",(req,res) => {
+app.patch("/todo/:id",authenticate,(req,res) => {
     
     var id = req.params.id;
     var body = _.pick(req.body,['text','completed']);
@@ -143,7 +155,12 @@ app.patch("/todo/:id",(req,res) => {
             
         }
         
-        Todo.findByIdAndUpdate(id,{
+        Todo.findOneAndUpdate({
+            
+            _creator : req.user._id,
+            _id : id
+            
+        },{
             
                 $set : body 
             
@@ -171,6 +188,83 @@ app.patch("/todo/:id",(req,res) => {
         });
         
     }
+    
+});
+
+app.post("/user",(req,res) => {
+    
+    var body = _.pick(req.body, ['email','password']);
+    
+    var user = new User(body);
+    
+    user.save().then(() => {
+        
+            user.generateAuthToken().then((token) => {
+                
+                res.status(200).header('x-auth', token).send(user);    
+                
+            });
+            
+        
+        })
+        .catch((err) => {
+        
+        res.status(400).send({
+            
+            errorMessage : "Could not add user"
+            
+        });
+        
+    });
+    
+});
+
+app.get("/user/me",authenticate,(req,res) => {
+    
+    res.status(200).send(req.user);
+    
+});
+
+app.post("/user/login",(req,res) => {
+    
+    var body = _.pick(req.body,['email','password']);
+    
+    User.findByCredentials(body.email,body.password).then((user) => {
+        
+        user.generateAuthToken().then((token) => {
+            
+            res.status(200).header('x-auth',token).send(user);
+            
+        });
+            
+        
+    }).catch((err) => {
+        
+        res.status(400).send({
+            
+            errorMessage : "Invalid Credentials"
+            
+        });
+        
+    });
+    
+});
+
+app.delete("/user/me/token",authenticate,(req,res) => {
+    
+    req.user.removeToken(req.token).then(() => {
+        
+        res.status(200).send({
+            
+            message : "You are logged out."
+            
+        });
+        
+    },() => {
+        
+        res.status(401).send(); 
+        
+    }); 
     
 });
 

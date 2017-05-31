@@ -4,28 +4,13 @@ var {ObjectID} = require('mongodb');
 
 var {app} = require('./../server/server.js');
 var {Todo} = require('./../server/models/Todo.js');
+var {User} = require('./../server/models/User.js');
+var {sampleTodos,populateTodos,sampleUsers,populateUsers} = require('./seed/seed.js');
 
-var sampleTodos = [{
-    _id : new ObjectID(),
-    text : "Sample Todo 1"
-},{
-    _id : new ObjectID(),
-    text : "Sample Todo 2",
-    completed : true,
-    completedAt : 33344
-}];
 
-beforeEach((done) => {
-   
-    Todo.remove({}).then(() =>{
-        
-        Todo.insertMany(sampleTodos);
-        done();
-        
-    });
-    
-});
 
+beforeEach(populateTodos);
+beforeEach(populateUsers);
 describe('POST /todo',() => {
     
    it('should return added TODO',(done) => {
@@ -34,6 +19,7 @@ describe('POST /todo',() => {
        
        request(app)
         .post("/todo")
+        .set('x-auth',sampleUsers[0].tokens[0].token)
         .send({text})
         .expect(200)
         .expect((res) => {
@@ -69,6 +55,7 @@ describe('POST /todo',() => {
         request(app)
             .post("/todo")
             .send({text:""})
+            .set('x-auth',sampleUsers[0].tokens[0].token)
             .expect(400)
             .end((err,res) =>{
             
@@ -100,10 +87,11 @@ describe('GET /todo',() => {
        
         request(app)
         .get('/todo')
+        .set('x-auth',sampleUsers[0].tokens[0].token)
         .expect(200)
         .expect((res) => {
             
-            expect(res.body.todos.length).toBe(2);
+            expect(res.body.todos.length).toBe(1);
             
         })
         .end(done);
@@ -118,6 +106,7 @@ describe('GET /todo/:id',() => {
        
         request(app)
             .get(`/todo/${sampleTodos[0]._id.toString('hex')}`)
+            .set('x-auth',sampleUsers[0].tokens[0].token)
             .expect(200)
             .expect((res) => {
             
@@ -133,6 +122,7 @@ describe('GET /todo/:id',() => {
         var id = new ObjectID();
         request(app)
             .get(`/todo/${id}`)
+            .set('x-auth',sampleUsers[0].tokens[0].token)
             .expect(404)
             .end(done);
         
@@ -144,6 +134,7 @@ describe('GET /todo/:id',() => {
         
         request(app)
             .get(`/todo/${id}`)
+            .set('x-auth',sampleUsers[0].tokens[0].token)
             .expect(400)
             .end(done);
         
@@ -158,6 +149,7 @@ describe('DELETE /todo/:id',() => {
         
         request(app)
             .delete(`/todo/${sampleTodos[0]._id.toString('hex')}`)
+            .set('x-auth',sampleUsers[0].tokens[0].token)
             .expect(200)
             .expect((res) => {
             
@@ -190,6 +182,7 @@ describe('DELETE /todo/:id',() => {
         var id = new ObjectID();
         request(app)
             .get(`/todo/${id}`)
+            .set('x-auth',sampleUsers[0].tokens[0].token)
             .expect(404)
             .end(done);
         
@@ -201,6 +194,7 @@ describe('DELETE /todo/:id',() => {
         
         request(app)
             .get(`/todo/${id}`)
+            .set('x-auth',sampleUsers[0].tokens[0].token)
             .expect(400)
             .end(done);
         
@@ -214,6 +208,7 @@ describe('PATCH /todo/:id',() => {
         
         request(app)
             .patch(`/todo/${sampleTodos[0]._id.toString('hex')}`)
+            .set('x-auth',sampleUsers[0].tokens[0].token)
             .send({
             
                 text : "Sample change 1",
@@ -252,6 +247,7 @@ describe('PATCH /todo/:id',() => {
         
         request(app)
             .patch(`/todo/${sampleTodos[1]._id.toString('hex')}`)
+            .set('x-auth',sampleUsers[1].tokens[0].token)
             .send({
             
                 text : "Sample change 2",
@@ -285,5 +281,275 @@ describe('PATCH /todo/:id',() => {
             });
         
     });
+    
+});
+
+describe('GET /user/me',() => {
+    
+    it('should return user if authenticated',(done) => {
+        
+         request(app)
+            .get('/user/me')
+            .set('x-auth',sampleUsers[0].tokens[0].token)
+            .expect(200)
+            .expect((res) => {
+             
+                expect(res.body._id).toBe(sampleUsers[0]._id.toString('hex'));
+                expect(res.body.email).toBe(sampleUsers[0].email);
+             
+            })
+            .end(done);
+        
+    }); 
+    
+    it('should return 401 if not authenticated',(done) => {
+        
+        request(app)
+            .get('/user/me')
+            .set('x-auth',123)
+            .expect(401)
+            .expect((res) => {
+            
+                expect(res.body.errorMessage).toBeA('string');
+            
+            })
+            .end(done);
+        
+    });
+    
+});
+
+describe('POST /user',() => {
+    
+    it('should create user for valid request',(done) => {
+        
+        request(app)
+            .post('/user')
+            .send({
+            
+                email : 'abc@example.com',
+                password : 'samplePass!'
+            
+            })
+            .expect(200)
+            .expect((res) => {
+            
+                expect(res.body.email).toBe('abc@example.com');
+                expect(res.headers['x-auth']).toExist();
+            
+            })
+            .end((err,res) => {
+            
+               if(err){
+                   
+                   done(err);
+                   
+               }else{
+                   
+                   User.find({email:'abc@example.com'}).then((users) => {
+                       
+                        expect(users.length).toBe(1);
+                        expect(users[0].email).toBe('abc@example.com');
+                        expect(users[0].password).toNotBe('samplePass!');
+                        done();
+                       
+                   }).catch((err) => done(err));
+                   
+               } 
+            
+            });
+            
+        
+    });
+    
+    it('should not create user for bad request',(done) => {
+        
+        request(app)
+            .post('/user')
+            .send({
+            
+                email : ' ',
+                password : ' '
+            
+            })
+            .expect(400)
+            .expect((res) => {
+            
+                expect(res.body.errorMessage).toExist();
+            
+            })
+            .end((err) => done(err));
+        
+    });
+    
+    it('should not create user for duplicate email',(done) => {
+        
+        request(app)
+            .post('/user')
+            .send({
+            
+                email : sampleUsers[0].email,
+                password : sampleUsers[0].password
+            
+            })
+            .expect(400)
+            .expect((res) => {
+            
+                expect(res.body.errorMessage).toExist();
+            
+            })
+            .end((err,res) => {
+            
+                if(err){
+                    
+                    done(err);
+                    
+                }else{
+                    
+                    User.find({
+                        
+                        email : sampleUsers[0].email
+                        
+                    }).then((users) => {
+                        
+                        expect(users.length).toBe(1);
+                        expect(users[0].email).toBe(sampleUsers[0].email);
+                        done();
+                        
+                    }).catch((err) => done(err));
+                    
+                }
+            
+            });
+        
+    });
+    
+});
+
+describe('POST /user/login',() => {
+    
+    it('should return token for valid request',(done) => {
+        
+        request(app)
+            .post("/user/login")
+            .send({
+            
+                email : sampleUsers[1].email,
+                password : sampleUsers[1].password
+            
+            })
+            .expect(200)
+            .expect((res) => {
+            
+                expect(res.headers['x-auth']).toExist();
+                expect(res.body.email).toBe(sampleUsers[1].email);
+            
+            })
+            .end((err,res) => {
+            
+                if(err){
+                    
+                    done(err);
+                    
+                }else{
+                    
+                    User.findById(sampleUsers[1]._id).then((user) => {
+                        
+                        expect(user.tokens[1]).toInclude({
+                            
+                            access : 'auth',
+                            token : res.headers['x-auth']
+                            
+                        });
+                        done();
+                        
+                    }).catch((err) => done(err));
+                    
+                }
+            
+            });
+        
+    }); 
+    
+    it('should not return token for invalid requests',(done) => {
+        
+        request(app)
+            .post("/user/login")
+            .send({
+            
+                email : 'sample',
+                password : 'password'
+            
+            })
+            .expect(400)
+            .expect((res) => {
+            
+                expect(res.header['x-auth']).toNotExist();
+            
+            })
+            .end((err,res) => {
+            
+                if(err){
+                    
+                    done(err);
+                    
+                }else{
+                    
+                    User.findById(sampleUsers[1]._id).then((user) => {
+                        
+                        expect(user.tokens.length).toBe(1);
+                        done();
+                        
+                    }).catch((err) => done(err));
+                    
+                }
+            
+            });
+        
+    });
+    
+});
+
+describe('DELETE /user/me/token', () => {
+    
+    it('should delete token for the specific logged in user',(done) => {
+        
+        request(app)
+            .delete('/user/me/token')
+            .set('x-auth',sampleUsers[0].tokens[0].token)
+            .expect(200)
+            .end((err,res) => {
+            
+                if(err){
+                    
+                    done(err);
+                    
+                }else{
+                    
+                    User.findById(sampleUsers[0]._id).then((user) => {
+                        
+                        if(!user){
+                            
+                            done(err);
+                            
+                        }else{
+                            
+                            expect(user.tokens).toNotInclude({
+                                
+                                access : 'auth',
+                                token : sampleUsers[0].tokens[0].token
+                                
+                            });
+                            done();
+                            
+                        }
+                        
+                    }).catch((err) => done(err));
+                    
+                }
+            
+            });
+        
+    }); 
     
 });
